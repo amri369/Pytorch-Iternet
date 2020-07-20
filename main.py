@@ -1,4 +1,5 @@
-from augmentation.transforms import *
+from dataset.dataset_retinal import DatasetRetinal
+from augmentation.transforms import TransformImgMask, TransformImg
 from model.iternet import Unet
 from trainer.trainer import Trainer
 
@@ -13,9 +14,10 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser = argparse.ArgumentParser(description='Model Training')
     parser.add_argument('--gpus', default='4', type=str, help='CUDA_VISIBLE_DEVICES')
-    parser.add_argument('--image_dir', default='data/images', type=str, help='Dataset folder path')
-    parser.add_argument('--train_csv', default='data/annotation/train.csv', type=str, help='annotation csv file path')
-    parser.add_argument('--val_csv', default='data/annotation/val.csv', type=str, help='annotation csv file path')
+    parser.add_argument('--image_dir', default='data/stare/stare-images/', type=str, help='Dataset folder path')
+    parser.add_argument('--image_dir', default='data/stare/labels-ah/', type=str, help='Dataset folder path')
+    parser.add_argument('--train_csv', default='data/stare/train.csv', type=str, help='list of training set')
+    parser.add_argument('--val_csv', default='data/stare/val.csv', type=str, help='list of validation set')
     parser.add_argument('--model_dir', default='', type=str, help='To load pretrained model path')
     parser.add_argument('--lr', default='0.01', type=float, help='learning rate')
     parser.add_argument('--weight_decay', default='0.0001', type=float, help='learning rate')

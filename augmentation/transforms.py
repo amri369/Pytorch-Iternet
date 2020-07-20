@@ -1,5 +1,6 @@
 import torch
 import torchvision.transforms.functional as F
+from torchvision import transforms
 import numbers
 import random
 import numpy as np
@@ -246,3 +247,41 @@ class RandomAffine(object):
         d = dict(self.__dict__)
         d['resample'] = _pil_interpolation_to_str[d['resample']]
         return s.format(name=self.__class__.__name__, **d)
+
+class TransformImgMask(object):
+    def __init__(self,
+                 size=None,
+                 rotate_limit=(-180, 180), 
+                 intensity_range=(-5, 5), 
+                 translate=(0.1, 0.2),
+                 zoom_range=(0.8, 1.2),
+                 to_tensor=False):
+        self.size = size
+        if self.size:
+            self.resize = transforms.Resize(size=size)
+        self.random_rotate = RandomRotation(degrees=rotate_limit)
+        self.random_flip = RandomFlip()
+        self.random_affine = RandomAffine(degrees=0, shear=intensity_range, translate=translate, scale=zoom_range)
+        self.to_tensor = to_tensor
+        
+    def __call__(self, img, mask):
+        if self.size:
+            img, mask = self.resize(img), self.resize(mask)
+        img, mask = self.random_rotate(img, mask)
+        img, mask = self.random_flip(img, mask)
+        img, mask = self.random_affine(img, mask)
+        
+        if self.to_tensor:
+            img, mask = transforms.ToTensor()(img), transforms.ToTensor()(mask)
+        return img, mask
+    
+class TransformImg(object):
+    def __init__(self, 
+                 brightness=(0.2, 1), 
+                 contrast=(0.2, 1), 
+                 saturation=(0.2, 1)):
+        self.transform = transforms.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation)
+        
+    def __call__(self, img):
+        img = self.transform(img)
+        return img
