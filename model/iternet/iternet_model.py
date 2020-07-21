@@ -38,14 +38,15 @@ class UNet(nn.Module):
         x = self.up4(x, x1)
         logits = self.outc(x)
         return x1, x, logits
-    
+
+
 class MiniUNet(nn.Module):
     def __init__(self, n_channels, n_classes, out_channels=32):
         super(MiniUNet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         bilinear = False
-        
+
         self.inc = DoubleConv(n_channels, out_channels)
         self.down1 = Down(out_channels, out_channels*2)
         self.down2 = Down(out_channels*2, out_channels*4)
@@ -65,24 +66,27 @@ class MiniUNet(nn.Module):
         x = self.up3(x, x1)
         logits = self.outc(x)
         return x1, x, logits
-    
+
+
 class Iternet(nn.Module):
     def __init__(self, n_channels, n_classes, out_channels=32, iterations=3):
         super(Iternet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.iterations = iterations
-        
+
         # define the network UNet layer
-        self.model_unet = UNet(n_channels=n_channels, n_classes=n_classes, out_channels=out_channels)
-        
+        self.model_unet = UNet(n_channels=n_channels,
+                               n_classes=n_classes, out_channels=out_channels)
+
         # define the network MiniUNet layers
-        self.model_miniunet = ModuleList(MiniUNet(n_channels=out_channels*2, n_classes=n_classes, out_channels=out_channels) for i in range(iterations))
-            
+        self.model_miniunet = ModuleList(MiniUNet(
+            n_channels=out_channels*2, n_classes=n_classes, out_channels=out_channels) for i in range(iterations))
+
     def forward(self, x):
         x1, x2, logits = self.model_unet(x)
         for i in range(self.iterations):
             x = torch.cat([x1, x2], dim=1)
             _, x2, logits = self.model_miniunet[i](x)
-            
+
         return logits
