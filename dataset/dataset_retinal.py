@@ -6,30 +6,34 @@ from PIL import Image
 
 class DatasetRetinal(Dataset):
     
-    def __init__(self, csv_file, image_dir, mask_dir, col_filename='filename', transform_img=None, transform_img_mask=None):
+    def __init__(self, csv_file, image_dir, mask_dir, 
+                 col_filename='filename', transform_img=None, transform_img_mask=None, batch_size=32):
         """
         Args:
-            csv_file (string): Path to the csv file with list of images in the dataset.
+            csv_file (Pandas dataframe): Path to the csv file with list of images in the dataset.
             image_dir (string): Directory with all the images.
-            mask_dir (string): Directory with all the maskes.
+            mask_dir (string): Directory with all the masks.
+            col_filename (string): column name containing images names.
             transform_img (callable, optional): Optional transform to be applied on images only.
-            transform_img_mask (callable, optional): Optional transform to be applied on images and maskes simultaneously.
+            transform_img_mask (callable, optional): Optional transform to be applied on images and masks simultaneously.
         """
-        self.filenames = pd.read_csv(csv_file)[col_filename].tolist()
+        self.filenames = pd.read_csv(csv_file)[col_filename]
         self.image_dir = image_dir
         self.mask_dir = mask_dir
         self.transform_img_mask = transform_img_mask
         self.transform_img = transform_img
+        self.batch_size = batch_size
+        self.data_len = len(self.filenames)
         
     def __len__(self):
-        return len(self.filenames)
+        return max(len(self.filenames), self.batch_size)
     
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
-        
+        idx = idx % self.data_len
         # get image data
-        filename = self.filenames[idx]
+        filename = self.filenames.iloc[idx]
         img_name = os.path.join(self.image_dir, filename)
         img = Image.open(img_name).convert('RGB')
         

@@ -60,7 +60,7 @@ class RandomRotation(object):
 
     """
 
-    def __init__(self, degrees, resample=False, expand=False, center=None, fill=None, p=0.5):
+    def __init__(self, degrees, p=0.5):
         if isinstance(degrees, numbers.Number):
             if degrees < 0:
                 raise ValueError("If degrees is a single number, it must be positive.")
@@ -69,11 +69,7 @@ class RandomRotation(object):
             if len(degrees) != 2:
                 raise ValueError("If degrees is a sequence, it must be of len 2.")
             self.degrees = degrees
-
-        self.resample = resample
-        self.expand = expand
-        self.center = center
-        self.fill = fill
+            
         self.p = p
 
     @staticmethod
@@ -97,17 +93,13 @@ class RandomRotation(object):
         """
         if torch.rand(1) < self.p:
             angle = self.get_params(self.degrees)
-            img = F.rotate(img, angle, self.resample, self.expand, self.center, self.fill)
-            mask = F.rotate(mask, angle, self.resample, self.expand, self.center, self.fill)
+            img = F.rotate(img, angle)
+            mask = F.rotate(mask, angle)
 
         return img, mask
 
     def __repr__(self):
         format_string = self.__class__.__name__ + '(degrees={0}'.format(self.degrees)
-        format_string += ', resample={0}'.format(self.resample)
-        format_string += ', expand={0}'.format(self.expand)
-        if self.center is not None:
-            format_string += ', center={0}'.format(self.center)
         format_string += '(p={})'.format(self.p)
         format_string += ')'
         return format_string
@@ -248,15 +240,120 @@ class RandomAffine(object):
         d['resample'] = _pil_interpolation_to_str[d['resample']]
         return s.format(name=self.__class__.__name__, **d)
 
+def _get_image_size(img):
+    if F._is_pil_image(img):
+        return img.size
+    elif isinstance(img, torch.Tensor) and img.dim() > 2:
+        return img.shape[-2:][::-1]
+    else:
+        raise TypeError("Unexpected type {}".format(type(img)))
+        
+class RandomCrop(object):
+    """Crop the given PIL Image at a random location.
+
+    Args:
+        size (sequence or int): Desired output size of the crop. If size is an
+            int instead of sequence like (h, w), a square crop (size, size) is
+            made.
+        padding (int or sequence, optional): Optional padding on each border
+            of the image. Default is None, i.e no padding. If a sequence of length
+            4 is provided, it is used to pad left, top, right, bottom borders
+            respectively. If a sequence of length 2 is provided, it is used to
+            pad left/right, top/bottom borders, respectively.
+        pad_if_needed (boolean): It will pad the image if smaller than the
+            desired size to avoid raising an exception. Since cropping is done
+            after padding, the padding seems to be done at a random offset.
+        fill: Pixel fill value for constant fill. Default is 0. If a tuple of
+            length 3, it is used to fill R, G, B channels respectively.
+            This value is only used when the padding_mode is constant
+        padding_mode: Type of padding. Should be: constant, edge, reflect or symmetric. Default is constant.
+
+             - constant: pads with a constant value, this value is specified with fill
+
+             - edge: pads with the last value on the edge of the image
+
+             - reflect: pads with reflection of image (without repeating the last value on the edge)
+
+                padding [1, 2, 3, 4] with 2 elements on both sides in reflect mode
+                will result in [3, 2, 1, 2, 3, 4, 3, 2]
+
+             - symmetric: pads with reflection of image (repeating the last value on the edge)
+
+                padding [1, 2, 3, 4] with 2 elements on both sides in symmetric mode
+                will result in [2, 1, 1, 2, 3, 4, 4, 3]
+
+    """
+
+    def __init__(self, size, padding=None, pad_if_needed=False, fill=0, padding_mode='constant'):
+        if isinstance(size, numbers.Number):
+            self.size = (int(size), int(size))
+        else:
+            self.size = size
+        self.padding = padding
+        self.pad_if_needed = pad_if_needed
+        self.fill = fill
+        self.padding_mode = padding_mode
+
+    @staticmethod
+    def get_params(img, output_size):
+        """Get parameters for ``crop`` for a random crop.
+
+        Args:
+            img (PIL Image): Image to be cropped.
+            output_size (tuple): Expected output size of the crop.
+
+        Returns:
+            tuple: params (i, j, h, w) to be passed to ``crop`` for random crop.
+        """
+        w, h = _get_image_size(img)
+        th, tw = output_size
+        if w == tw and h == th:
+            return 0, 0, h, w
+
+        i = random.randint(0, h - th)
+        j = random.randint(0, w - tw)
+        return i, j, th, tw
+
+    def __call__(self, img, mask):
+        """
+        Args:
+            img (PIL Image): Image to be cropped.
+
+        Returns:
+            PIL Image: Cropped image.
+        """
+        if self.padding is not None:
+            img = F.pad(img, self.padding, self.fill, self.padding_mode)
+
+        # pad the width if needed
+        if self.pad_if_needed and img.size[0] < self.size[1]:
+            img = F.pad(img, (self.size[1] - img.size[0], 0), self.fill, self.padding_mode)
+            mask = F.pad(mask, (self.size[1] - img.size[0], 0), self.fill, self.padding_mode)
+        # pad the height if needed
+        if self.pad_if_needed and img.size[1] < self.size[0]:
+            img = F.pad(img, (0, self.size[0] - img.size[1]), self.fill, self.padding_mode)
+            mask = F.pad(mask, (0, self.size[0] - img.size[1]), self.fill, self.padding_mode)
+        i, j, h, w = self.get_params(img, self.size)
+        
+        img = F.crop(img, i, j, h, w)
+        mask = F.crop(mask, i, j, h, w)
+
+        return img, mask
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(size={0}, padding={1})'.format(self.size, self.padding)
+
 class TransformImgMask(object):
     def __init__(self,
                  size=None,
+                 size_crop=128,
                  rotate_limit=(-180, 180), 
                  intensity_range=(-5, 5), 
                  translate=(0.1, 0.2),
                  zoom_range=(0.8, 1.2),
                  to_tensor=False):
         self.size = size
+        self.random_crop = RandomCrop(size_crop)
         if self.size:
             self.resize = transforms.Resize(size=size)
         self.random_rotate = RandomRotation(degrees=rotate_limit)
@@ -265,6 +362,7 @@ class TransformImgMask(object):
         self.to_tensor = to_tensor
         
     def __call__(self, img, mask):
+        img, mask = self.random_crop(img, mask)
         if self.size:
             img, mask = self.resize(img), self.resize(mask)
         img, mask = self.random_rotate(img, mask)
@@ -273,6 +371,8 @@ class TransformImgMask(object):
         
         if self.to_tensor:
             img, mask = transforms.ToTensor()(img), transforms.ToTensor()(mask)
+            mask = (mask>0).float()[0]
+            mask = mask.unsqueeze(0)
         return img, mask
     
 class TransformImg(object):
