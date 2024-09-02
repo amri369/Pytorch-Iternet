@@ -81,7 +81,7 @@ class Iternet(nn.Module):
 
         # define the network MiniUNet layers
         self.model_miniunet = ModuleList(MiniUNet(
-            n_channels=out_channels*2, n_classes=n_classes, out_channels=out_channels) for i in range(iterations))
+            n_channels=out_channels*(i+2), n_classes=n_classes, out_channels=out_channels) for i in range(iterations))
 
     def forward(self, x):
         logits = []
