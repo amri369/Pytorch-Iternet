@@ -4,6 +4,7 @@ import torch.nn as nn
 import random
 import numpy as np
 
+
 class Trainer(object):
 
     def __init__(self, model, criteria, optimizer, scheduler, gpus, seed):
@@ -46,20 +47,19 @@ class Trainer(object):
         for x, y in dataloader:
             if self.is_gpu_available:
                 x, y = x.cuda(), y.cuda()
-                #print('----x', x.shape)
-                #print('----y', y.shape)
+
             with torch.set_grad_enabled(True):
                 z = self.model(x)
-                #print('----z', z.shape)
-                loss = self.criteria(z, y)
+                loss = self.criteria(z[0], y)
+                _n = len(z)
+                for b in range(1, _n):
+                    loss += self.criteria(z[b], y)
                 
             # back propagation
             self.optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_value_(self.model.parameters(), 0.1)
             self.optimizer.step()
-            #if self.scheduler is not None:
-                #self.scheduler.step()
 
             epoch_loss += loss.item() * len(x)
 
@@ -77,7 +77,11 @@ class Trainer(object):
                 x, y = x.cuda(), y.cuda()
             with torch.set_grad_enabled(False):
                 z = self.model(x)
-                loss = self.criteria(z, y)
+                loss = self.criteria(z[0], y)
+                _n = len(z)
+                for b in range(1, _n):
+                    loss += self.criteria(z[b], y)
+
             epoch_loss += loss.item() * len(x)
 
         epoch_loss = epoch_loss / len(dataloader)

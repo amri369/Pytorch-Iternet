@@ -84,9 +84,12 @@ class Iternet(nn.Module):
             n_channels=out_channels*2, n_classes=n_classes, out_channels=out_channels) for i in range(iterations))
 
     def forward(self, x):
-        x1, x2, logits = self.model_unet(x)
+        logits = []
+        x1, x2, logit = self.model_unet(x)
+        logits.append(logit)
         for i in range(self.iterations):
             x = torch.cat([x1, x2], dim=1)
-            _, x2, logits = self.model_miniunet[i](x)
+            _, x2, logit = self.model_miniunet[i](x)
+            logits.append(logit)
 
         return logits
