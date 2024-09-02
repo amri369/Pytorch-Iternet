@@ -219,8 +219,8 @@ class RandomAffine(object):
             PIL Image: Affine transformed image.
         """
         ret = self.get_params(self.degrees, self.translate, self.scale, self.shear, img.size)
-        img_ = F.affine(img, *ret, resample=self.resample, fillcolor=self.fillcolor)
-        mask_ = F.affine(mask, *ret, resample=self.resample, fillcolor=self.fillcolor)
+        img_ = F.affine(img, *ret)
+        mask_ = F.affine(mask, *ret)
         return img_, mask_
 
     def __repr__(self):
